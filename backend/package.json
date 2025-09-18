@@ -11,12 +11,14 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@types/mongoose": "^5.11.97",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
     "express-session": "^1.18.2",
     "google-auth-library": "^10.3.0",
     "googleapis": "^159.0.0",
+    "mongoose": "^8.18.1",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.2"
   },

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { google } from "googleapis";
 import dotenv from "dotenv";
+import User from "../models/User";
 
 dotenv.config();
 
@@ -13,17 +14,17 @@ const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_REDIRECT_URI
 );
 
-// Debug: Check redirect URI
-console.log("Google OAuth Redirect URI:", oauth2Client.redirectUri);
-
 // Step 1: Redirect user to Google login
 router.get("/google", (req, res) => {
-  const scopes = ["https://www.googleapis.com/auth/photoslibrary.readonly", "openid", "email", "profile"];
-  
   const url = oauth2Client.generateAuthUrl({
     access_type: "offline",
-    scope: scopes,
-    prompt: "consent",
+    prompt: "consent", // ensures refresh_token is returned
+    scope: [
+      "openid",
+      "email",
+      "profile",
+      "https://www.googleapis.com/auth/photoslibrary.readonly"
+    ]
   });
 
   res.redirect(url);
@@ -38,12 +39,30 @@ router.get("/google/callback", async (req, res) => {
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
 
-    // You can save tokens in DB/session for future API calls
-    console.log("Google OAuth tokens:", tokens);
+    // Fetch user profile info
+    const oauth2 = google.oauth2("v2");
+    const { data } = await oauth2.userinfo.get({ auth: oauth2Client });
 
-    res.send("Google OAuth successful! Tokens acquired.");
+    // Save user in DB
+    const user = await User.findOneAndUpdate(
+      { googleId: data.id },
+      {
+        googleId: data.id,
+        email: data.email,
+        name: data.name,
+        picture: data.picture,
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        expiryDate: tokens.expiry_date
+      },
+      { upsert: true, new: true }
+    );
+
+    console.log("User saved/updated in DB:", user);
+
+    res.send("Google OAuth successful! User saved in DB.");
   } catch (err) {
-    console.error(err);
+    console.error("OAuth callback error:", err);
     res.status(500).send("Error retrieving Google tokens");
   }
 });
