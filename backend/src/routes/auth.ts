@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { google } from "googleapis";
 import dotenv from "dotenv";
 import User from "../models/User";
@@ -14,11 +14,11 @@ const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_REDIRECT_URI
 );
 
-// Step 1: Redirect user to Google login
-router.get("/google", (req, res) => {
+// 🔹 Step 1: Redirect user to Google login
+router.get("/google", (req: Request, res: Response) => {
   const url = oauth2Client.generateAuthUrl({
     access_type: "offline",
-    prompt: "consent", // ensures refresh_token is returned
+    prompt: "consent", // ensures refresh_token is returned on first login
     scope: [
       "openid",
       "email",
@@ -27,7 +27,7 @@ router.get("/google", (req, res) => {
     ]
   });
 
-  res.redirect(url);
+  return res.redirect(url);
 });
 
 // Step 2: Handle callback
@@ -39,28 +39,27 @@ router.get("/google/callback", async (req, res) => {
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
 
-    // Fetch user profile info
-    const oauth2 = google.oauth2("v2");
-    const { data } = await oauth2.userinfo.get({ auth: oauth2Client });
+    const oauth2 = google.oauth2({ auth: oauth2Client, version: "v2" });
+    const userInfo = await oauth2.userinfo.get();
 
-    // Save user in DB
+    // Save to MongoDB
     const user = await User.findOneAndUpdate(
-      { googleId: data.id },
+      { googleId: userInfo.data.id },
       {
-        googleId: data.id,
-        email: data.email,
-        name: data.name,
-        picture: data.picture,
+        googleId: userInfo.data.id,
+        email: userInfo.data.email,
+        name: userInfo.data.name,
+        profilePic: userInfo.data.picture,
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token,
-        expiryDate: tokens.expiry_date
       },
       { upsert: true, new: true }
     );
 
-    console.log("User saved/updated in DB:", user);
+    console.log("✅ User saved:", user);
 
-    res.send("Google OAuth successful! User saved in DB.");
+    // ✅ Redirect to frontend instead of plain text response
+    res.redirect(`http://localhost:3000/dashboard?user=${user._id}`);
   } catch (err) {
     console.error("OAuth callback error:", err);
     res.status(500).send("Error retrieving Google tokens");

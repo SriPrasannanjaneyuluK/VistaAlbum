@@ -1,21 +1,23 @@
 import express from "express";
 import dotenv from "dotenv";
 import authRoutes from "./routes/auth";
-import mongoose from "mongoose";
+import connectDB from "./config/db";
 
 dotenv.config();
+
+// ✅ Connect to MongoDB once
+connectDB();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// ✅ Middleware
+app.use(express.json());
+
+// To this:
 app.use("/api/auth", authRoutes);
 
+// ✅ Server listen
 app.listen(PORT, () => {
-  console.log(`API is running on port ${PORT}`);
+  console.log(`🚀 API is running on port ${PORT}`);
 });
-
-// MongoDB connection
-mongoose
-  .connect(process.env.MONGO_URI as string)
-  .then(() => console.log("✅ MongoDB connected"))
-  .catch((err) => console.error("❌ MongoDB connection error:", err));
