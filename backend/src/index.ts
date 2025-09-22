@@ -5,8 +5,7 @@ import cors from "cors";
 import authRoutes from "./routes/auth";
 import userRoutes from "./routes/users";
 import connectDB from "./config/db";
-
-
+import photosRoutes from "./routes/photos";
 
 dotenv.config();
 
@@ -22,7 +21,7 @@ app.use(express.json());
 // ✅ CORS - must be before routes
 app.use(
   cors({
-    origin: "http://localhost:3000", // your frontend
+    origin: "http://localhost:3000", // frontend URL
     credentials: true,
   })
 );
@@ -30,6 +29,7 @@ app.use(
 // ✅ Routes
 app.use("/api/auth", authRoutes); // Google OAuth
 app.use("/api/users", userRoutes); // Fetch user info
+app.use("/api/photos", photosRoutes);
 
 // ✅ Default route for testing
 app.get("/", (req, res) => res.send("API is running"));
