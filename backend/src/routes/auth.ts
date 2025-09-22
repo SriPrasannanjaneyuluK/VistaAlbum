@@ -18,47 +18,57 @@ const oauth2Client = new google.auth.OAuth2(
 router.get("/google", (req: Request, res: Response) => {
   const url = oauth2Client.generateAuthUrl({
     access_type: "offline",
-    prompt: "consent", // ensures refresh_token is returned on first login
+    prompt: "consent",
+    redirect_uri: process.env.GOOGLE_REDIRECT_URI,
     scope: [
       "openid",
       "email",
       "profile",
-      "https://www.googleapis.com/auth/photoslibrary.readonly"
-    ]
+      "https://www.googleapis.com/auth/photoslibrary.readonly",
+    ],
   });
 
-  return res.redirect(url);
+  res.redirect(url);
 });
 
-// Step 2: Handle callback
-router.get("/google/callback", async (req, res) => {
+// 🔹 Step 2: Handle Google callback
+router.get("/google/callback", async (req: Request, res: Response) => {
   const code = req.query.code as string;
   if (!code) return res.status(400).send("No code provided by Google");
 
   try {
-    const { tokens } = await oauth2Client.getToken(code);
+    // Exchange code for tokens
+    const { tokens } = await oauth2Client.getToken({
+      code,
+      redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+    });
+
     oauth2Client.setCredentials(tokens);
 
+    // Get user info
     const oauth2 = google.oauth2({ auth: oauth2Client, version: "v2" });
     const userInfo = await oauth2.userinfo.get();
 
-    // Save to MongoDB
+    // Save or update user in MongoDB
     const user = await User.findOneAndUpdate(
-      { googleId: userInfo.data.id },
+    { googleId: userInfo.data.id },
       {
         googleId: userInfo.data.id,
         email: userInfo.data.email,
         name: userInfo.data.name,
-        profilePic: userInfo.data.picture,
+        profilePic: userInfo.data.picture || "", // ensure a string is stored
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token,
       },
       { upsert: true, new: true }
     );
 
+    console.log("Saved user profilePic:", user.profilePic); // ✅ Debug
     console.log("✅ User saved:", user);
+    console.log("Google user info:", userInfo.data);
 
-    // ✅ Redirect to frontend instead of plain text response
+
+    // Redirect to frontend dashboard with user ID
     res.redirect(`http://localhost:3000/dashboard?user=${user._id}`);
   } catch (err) {
     console.error("OAuth callback error:", err);
